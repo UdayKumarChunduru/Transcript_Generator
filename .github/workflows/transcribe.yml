@@ -1,4 +1,4 @@
-name: Cloud Transcriber
+name: Video Transcript Generator
 
 on:
   workflow_dispatch:
@@ -57,5 +57,5 @@ jobs:
       - name: Upload SRT Subtitle Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: subtitle-${{ env.FILENAME }}
+          name: subtitle-srt-output
           path: *.srt
