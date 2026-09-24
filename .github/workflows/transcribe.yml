@@ -1,0 +1,61 @@
+name: Cloud Transcriber
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_url:
+        description: 'Direct download link to the video'
+        required: true
+        type: string
+
+jobs:
+  transcribe:
+    runs-on: ubuntu-latest
+    
+    container:
+      image: archlinux:latest
+
+    steps:
+      - name: Install Whisper and FFmpeg via Pacman
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm whisper-cpp ffmpeg curl
+
+      - name: Download Ultimate Model (ggml-large-v3.bin)
+        run: |
+          curl -L -o ggml-large-v3.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin
+
+      - name: Download Video & Auto-Detect Filename
+        run: |
+          RAW_URL="${{ inputs.video_url }}"
+          FILENAME=$(basename "${RAW_URL%%\?*}")
+          
+          if [ -z "$FILENAME" ] || [ "$FILENAME" = "/" ]; then
+            FILENAME="downloaded_video.mp4"
+          fi
+          
+          echo "Detected Filename: $FILENAME"
+          echo "FILENAME=$FILENAME" >> $GITHUB_ENV
+          
+          curl -L -o "$FILENAME" "$RAW_URL"
+
+      - name: Extract & Enhance Audio (AI Denoise Filters)
+        run: |
+          FULL_NAME="$FILENAME"
+          BASE_NAME="${FULL_NAME%.*}"
+          
+          echo "Restoring and cleaning audio for $BASE_NAME..."
+          ffmpeg -y -fflags +genpts -i "$FULL_NAME" -vn -ar 16000 -ac 1 -c:a pcm_s16le \
+          -af "afftdn=nf=-25,highpass=f=80,lowpass=f=7500" "audio_ready.wav" -loglevel error
+
+      - name: Run High-Accuracy Transcription (Large-V3)
+        run: |
+          BASE_NAME="${FILENAME%.*}"
+          echo "Running Whisper large-v3 transcription..."
+          whisper-cli -m ggml-large-v3.bin -f audio_ready.wav -of "$BASE_NAME" -l en -osrt -t 4
+
+      - name: Upload SRT Subtitle Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: subtitle-${{ env.FILENAME }}
+          path: *.srt
