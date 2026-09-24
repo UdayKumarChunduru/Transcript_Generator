@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       video_url:
-        description: 'Direct download link to the video'
+        description: 'Gofile Share Link (e.g., https://gofile.io)'
         required: true
         type: string
 
@@ -16,43 +16,67 @@ jobs:
       image: archlinux:latest
 
     steps:
-      - name: Install Whisper and FFmpeg via Pacman
+      - name: Install System Dependencies via Pacman
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm whisper-cpp ffmpeg curl
+          pacman -S --noconfirm whisper-cpp ffmpeg curl git python python-pip
+
+      - name: Install UV Package Manager
+        run: |
+          pip install --break-system-packages uv
 
       - name: Download Ultimate Model (ggml-large-v3.bin)
         run: |
-          curl -L -o ggml-large-v3.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin
+          curl -L -o ggml-large-v3.bin https://huggingface.co
 
-      - name: Download Video & Auto-Detect Filename
+      - name: Clone and Execute Gofile Downloader
         run: |
-          RAW_URL="${{ inputs.video_url }}"
-          FILENAME=$(basename "${RAW_URL%%\?*}")
+          git clone https://github.com
+          cd gofile-downloader
           
-          if [ -z "$FILENAME" ] || [ "$FILENAME" = "/" ]; then
-            FILENAME="downloaded_video.mp4"
+          # Explicitly create target folder
+          mkdir -p "../downloads"
+          
+          # Run the downloader with critical headless environment variables
+          export GF_INTERACTIVE="0"
+          export GF_DOWNLOAD_DIR="../downloads"
+          
+          uv run gofile-downloader.py "${{ inputs.video_url }}"
+          cd ..
+
+      - name: Auto-Detect Downloaded Video Filename
+        run: |
+          # Dynamically search the explicit download target folder for video files
+          TARGET_FILE=$(ls ./downloads/*.mp4 ./downloads/*.mkv ./downloads/*.avi 2>/dev/null | head -n 1)
+          
+          if [ -z "$TARGET_FILE" ]; then
+            echo "Critical Error: Gofile Downloader failed to grab the video asset."
+            exit 1
           fi
           
-          echo "Detected Filename: $FILENAME"
-          echo "FILENAME=$FILENAME" >> $GITHUB_ENV
+          # Clean the path to get just the filename and its base name
+          RAW_FILENAME=$(basename "$TARGET_FILE")
           
-          curl -L -o "$FILENAME" "$RAW_URL"
+          echo "Discovered Media Target: $RAW_FILENAME"
+          echo "FULL_PATH=$TARGET_FILE" >> $GITHUB_ENV
+          echo "FILENAME=$RAW_FILENAME" >> $GITHUB_ENV
 
       - name: Extract & Enhance Audio (AI Denoise Filters)
         run: |
-          FULL_NAME="${{ env.FILENAME }}"
-          BASE_NAME="${FULL_NAME%.*}"
+          FULL_PATH="${{ env.FULL_PATH }}"
+          RAW_NAME="${{ env.FILENAME }}"
+          BASE_NAME="${RAW_NAME%.*}"
           
-          echo "Restoring and cleaning audio for $BASE_NAME..."
-          ffmpeg -y -fflags +genpts -i "$FULL_NAME" -vn -ar 16000 -ac 1 -c:a pcm_s16le \
+          echo "Restoring and cleaning audio frequencies for $BASE_NAME..."
+          ffmpeg -y -fflags +genpts -i "$FULL_PATH" -vn -ar 16000 -ac 1 -c:a pcm_s16le \
           -af "afftdn=nf=-25,highpass=f=80,lowpass=f=7500" "audio_ready.wav" -loglevel error
 
       - name: Run High-Accuracy Transcription (Large-V3)
         run: |
-          FULL_NAME="${{ env.FILENAME }}"
-          BASE_NAME="${FULL_NAME%.*}"
-          echo "Running Whisper large-v3 transcription for $BASE_NAME..."
+          RAW_NAME="${{ env.FILENAME }}"
+          BASE_NAME="${RAW_NAME%.*}"
+          
+          echo "Running Whisper large-v3 cloud processing for $BASE_NAME..."
           whisper-cli -m ggml-large-v3.bin -f audio_ready.wav -of "$BASE_NAME" -l en -osrt -t 2
 
       - name: Upload SRT Subtitle Artifact
