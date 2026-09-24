@@ -27,7 +27,7 @@ jobs:
 
       - name: Download Ultimate Model (ggml-large-v3.bin)
         run: |
-          curl -L -o ggml-large-v3.bin https://huggingface.co
+          curl -L -o ggml-large-v3.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin
 
       - name: Clone and Execute Gofile Downloader
         run: |
