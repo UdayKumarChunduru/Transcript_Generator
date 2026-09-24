@@ -1,4 +1,4 @@
-name: Video Transcript Generator
+name: Cloud Transcriber
 
 on:
   workflow_dispatch:
@@ -41,7 +41,7 @@ jobs:
 
       - name: Extract & Enhance Audio (AI Denoise Filters)
         run: |
-          FULL_NAME="$FILENAME"
+          FULL_NAME="${{ env.FILENAME }}"
           BASE_NAME="${FULL_NAME%.*}"
           
           echo "Restoring and cleaning audio for $BASE_NAME..."
@@ -50,12 +50,13 @@ jobs:
 
       - name: Run High-Accuracy Transcription (Large-V3)
         run: |
-          BASE_NAME="${FILENAME%.*}"
-          echo "Running Whisper large-v3 transcription..."
-          whisper-cli -m ggml-large-v3.bin -f audio_ready.wav -of "$BASE_NAME" -l en -osrt -t 4
+          FULL_NAME="${{ env.FILENAME }}"
+          BASE_NAME="${FULL_NAME%.*}"
+          echo "Running Whisper large-v3 transcription for $BASE_NAME..."
+          whisper-cli -m ggml-large-v3.bin -f audio_ready.wav -of "$BASE_NAME" -l en -osrt -t 2
 
       - name: Upload SRT Subtitle Artifact
         uses: actions/upload-artifact@v4
         with:
           name: subtitle-srt-output
-          path: *.srt
+          path: "*.srt"
