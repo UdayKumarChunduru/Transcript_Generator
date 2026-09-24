@@ -31,7 +31,7 @@ jobs:
 
       - name: Clone and Execute Gofile Downloader
         run: |
-          git clone https://github.com
+          git clone https://github.com/Itsdw/gofile-downloader
           cd gofile-downloader
           
           # Explicitly create target folder
