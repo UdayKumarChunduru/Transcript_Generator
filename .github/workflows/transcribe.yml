@@ -23,8 +23,8 @@ jobs:
 
       - name: Download Ultimate Model (ggml-large-v3.bin)
         run: |
-          curl -L -o ggml-large-v3-turbo.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin
-
+          curl -L -o ggml-small.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin
+          
       - name: Fetch Video Asset from Pixeldrain API
         run: |
           RAW_INPUT="${{ inputs.video_url }}"
@@ -74,7 +74,7 @@ jobs:
           BASE_NAME="${RAW_NAME%.*}"
           
           echo "Running Whisper large-v3 cloud processing for $BASE_NAME..."
-          whisper-cli -m ggml-large-v3-turbo.bin -f audio_ready.wav -of "$BASE_NAME" -l en -osrt -t 4
+          whisper-cli -m ggml-small.en.bin -f audio_ready.wav -of "$BASE_NAME" -l en -osrt -t 4
 
       - name: Upload SRT Subtitle Artifact
         uses: actions/upload-artifact@v4
