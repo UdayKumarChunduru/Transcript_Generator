@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       video_url:
-        description: 'Gofile Share Link (e.g., https://gofile.io)'
+        description: 'Pixeldrain Link (e.g., https://pixeldrain.com/u/xxxxxx)'
         required: true
         type: string
 
@@ -19,47 +19,36 @@ jobs:
       - name: Install System Dependencies via Pacman
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm whisper-cpp ffmpeg curl git python python-pip
-
-      - name: Install UV Package Manager
-        run: |
-          pip install --break-system-packages uv
+          pacman -S --noconfirm whisper-cpp ffmpeg curl
 
       - name: Download Ultimate Model (ggml-large-v3.bin)
         run: |
           curl -L -o ggml-large-v3.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin
 
-      - name: Clone and Execute Gofile Downloader
-        env:
-          # Authenticates the runner container safely via your repository secret
-          GF_TOKEN: ${{ secrets.GOFILE_API_TOKEN }}
+      - name: Fetch Video Asset from Pixeldrain API
         run: |
-          git clone https://github.com/ltsdw/gofile-downloader
-          cd gofile-downloader
+          RAW_INPUT="${{ inputs.video_url }}"
           
-          # Explicitly create target folder
-          mkdir -p "../downloads"
+          # Extracts the alphanumeric File ID block from the input URL
+          FILE_ID=$(echo "$RAW_INPUT" | sed 's|.*/u/||; s|.*/file/||; s|.*/d/||')
           
-          # Force the headless, automated parameters
-          export GF_INTERACTIVE="0"
-          export GF_DOWNLOAD_DIR="../downloads"
-          export UV_LINK_MODE="copy"
+          echo "Targeting Pixeldrain ID: $FILE_ID"
           
-          uv run gofile-downloader.py "${{ inputs.video_url }}"
+          # Creates dedicated working paths
+          mkdir -p "./downloads"
+          
+          # Executes direct streaming pull using Pixeldrain's file delivery API endpoint
+          cd downloads
+          curl -L -O -J "https://pixeldrain.com/api/file/$FILE_ID"
           cd ..
 
       - name: Auto-Detect Downloaded Video Filename
         run: |
-          # Check what landed in the folder for deep debugging
-          echo "=== Content of Downloads Directory ==="
-          ls -la ./downloads/ || echo "Folder is completely empty"
-          echo "======================================"
-
-          # Dynamically search for any video extensions
+          # Locate the file that curl generated inside the downloads folder
           TARGET_FILE=$(ls ./downloads/*.mp4 ./downloads/*.mkv ./downloads/*.avi ./downloads/*.webm 2>/dev/null | head -n 1)
           
           if [ -z "$TARGET_FILE" ]; then
-            echo "Critical Error: Gofile Downloader failed to pull the video stream."
+            echo "Critical Error: Pixeldrain API failed to yield the video stream."
             exit 1
           fi
           
