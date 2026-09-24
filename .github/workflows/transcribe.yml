@@ -74,7 +74,7 @@ jobs:
           BASE_NAME="${RAW_NAME%.*}"
           
           echo "Running Whisper large-v3 cloud processing for $BASE_NAME..."
-          whisper-cli -m ggml-large-v3-turbo.bin -f audio_ready.wav -of "$BASE_NAME" -l en -osrt -t 2
+          whisper-cli -m ggml-large-v3-turbo.bin -f audio_ready.wav -of "$BASE_NAME" -l en -osrt -t 4
 
       - name: Upload SRT Subtitle Artifact
         uses: actions/upload-artifact@v4
