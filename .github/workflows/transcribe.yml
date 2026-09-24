@@ -30,6 +30,9 @@ jobs:
           curl -L -o ggml-large-v3.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin
 
       - name: Clone and Execute Gofile Downloader
+        env:
+          # Authenticates the runner container safely via your repository secret
+          GF_TOKEN: ${{ secrets.GOFILE_API_TOKEN }}
         run: |
           git clone https://github.com/ltsdw/gofile-downloader
           cd gofile-downloader
@@ -37,24 +40,29 @@ jobs:
           # Explicitly create target folder
           mkdir -p "../downloads"
           
-          # Run the downloader with critical headless environment variables
+          # Force the headless, automated parameters
           export GF_INTERACTIVE="0"
           export GF_DOWNLOAD_DIR="../downloads"
+          export UV_LINK_MODE="copy"
           
           uv run gofile-downloader.py "${{ inputs.video_url }}"
           cd ..
 
       - name: Auto-Detect Downloaded Video Filename
         run: |
-          # Dynamically search the explicit download target folder for video files
-          TARGET_FILE=$(ls ./downloads/*.mp4 ./downloads/*.mkv ./downloads/*.avi 2>/dev/null | head -n 1)
+          # Check what landed in the folder for deep debugging
+          echo "=== Content of Downloads Directory ==="
+          ls -la ./downloads/ || echo "Folder is completely empty"
+          echo "======================================"
+
+          # Dynamically search for any video extensions
+          TARGET_FILE=$(ls ./downloads/*.mp4 ./downloads/*.mkv ./downloads/*.avi ./downloads/*.webm 2>/dev/null | head -n 1)
           
           if [ -z "$TARGET_FILE" ]; then
-            echo "Critical Error: Gofile Downloader failed to grab the video asset."
+            echo "Critical Error: Gofile Downloader failed to pull the video stream."
             exit 1
           fi
           
-          # Clean the path to get just the filename and its base name
           RAW_FILENAME=$(basename "$TARGET_FILE")
           
           echo "Discovered Media Target: $RAW_FILENAME"
